@@ -1,0 +1,114 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "virtualNetworkName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the existing virtual network."
+      }
+    },
+    "virtualNetworkResourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the resource group where the virtual network resides."
+      }
+    },
+    "subnetName": {
+      "type": "string",
+      "defaultValue": "default",
+      "metadata": {
+        "description": "The name of the subnet to use within the virtual network."
+      }
+    },
+    "vmName": {
+      "type": "string",
+      "defaultValue": "win11-multi-session-vm",
+      "metadata": {
+        "description": "The name for the VM that will be used to create the image."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The administrator username for the VM."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The administrator password for the VM."
+      }
+    }
+  },
+  "variables": {
+    "imagePublisher": "MicrosoftWindowsDesktop",
+    "imageOffer": "Windows-11",
+    "imageSku": "win11-22h2-avd-multi-session-gen2",
+    "vmSize": "Standard_D4s_v3"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-03-01",
+      "name": "[parameters('vmName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[variables('imageSku')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat('nic-', parameters('vmName')))]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-04-01",
+      "name": "[concat('nic-', parameters('vmName'))]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId(parameters('virtualNetworkResourceGroupName'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "vmId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+    }
+  }
+}
